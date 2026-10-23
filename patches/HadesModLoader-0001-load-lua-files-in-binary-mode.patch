@@ -1,0 +1,37 @@
+From a547e43f0faebf2ffab84d9ae685734203a362e7 Mon Sep 17 00:00:00 2001
+From: coop-anything QA <noreply@anthropic.com>
+Date: Fri, 23 Oct 2026 15:21:56 +0530
+Subject: [PATCH] Load mod Lua files in binary mode so CRLF line endings work
+
+In text mode the CRLF to LF conversion makes read() return fewer characters
+than tellg() reported, leaving NUL bytes at the end of the buffer; Lua then
+fails to parse the file. init.lua is skipped silently and ModRequire of such
+a file stops the game's script processing.
+
+Tested with an automated in-game suite: CRLF init.lua and CRLF ModRequire
+fail on the v0.4.3 release DLL and on ee0e788, pass with this change; co-op
+boot and independent-control tests still pass.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ core/src/LuaManager.cpp | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/core/src/LuaManager.cpp b/core/src/LuaManager.cpp
+index 24b773c..1e97508 100644
+--- a/core/src/LuaManager.cpp
++++ b/core/src/LuaManager.cpp
+@@ -33,7 +33,9 @@ bool LuaManager::DoScriptFile(const std::filesystem::path &path) {
+ }
+ 
+ bool LuaManager::LoadScriptFile(const std::filesystem::path &path) {
+-    std::ifstream file{path, std::ifstream::ate};
++    // Binary mode: in text mode CRLF becomes LF, so read() returns fewer characters than
++    // tellg() reported and the buffer ends in NUL bytes, which Lua rejects.
++    std::ifstream file{path, std::ios::binary | std::ios::ate};
+     if (!file.is_open())
+         return false;
+ 
+-- 
+2.49.0.windows.1
+
