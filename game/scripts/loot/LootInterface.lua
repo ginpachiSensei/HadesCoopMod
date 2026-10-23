@@ -11,6 +11,7 @@
 ---@field GiveLoot fun(baseFun: fun(args: table), args: table): table
 ---@field Reset fun(playersCount: number)
 ---@field CanUseHeroLoot fun(loot: table, hero: table): boolean
+---@field OnPlayerDied fun(playerId: number)
 
 ---@type CoopModConfig
 local Config = ModRequire "../config.lua"

@@ -91,4 +91,9 @@ function LootShared.CanUseHeroLoot(loot, hero)
     return true
 end
 
+--- Shared rewards are not tagged for a player, so a death leaves nothing stuck.
+---@param playerId number
+function LootShared.OnPlayerDied(playerId)
+end
+
 return LootShared

@@ -323,13 +323,31 @@ function LootRoomDuplicated.CanUseHeroLoot(loot, hero)
     if not loot.CoopChoosenPlayer then
         return true
     end
-    if loot.CoopChoosenPlayer == CoopPlayers.GetPlayerByHero(hero) then
-        return true
+    return loot.CoopChoosenPlayer == CoopPlayers.GetPlayerByHero(hero)
+end
+
+--- A player died. Rewards still waiting for that player are removed: nobody else may take them,
+--- the exits wait for every waiting reward, and SpawnRoomReward waits for this one before it
+--- spawns the next player's. Releasing its wait lets the next living player's reward spawn.
+---@param playerId number
+function LootRoomDuplicated.OnPlayerDied(playerId)
+    -- Collect first: releasing the wait spawns the next reward into ActivatedObjects right away.
+    local forfeited = {}
+    for id, loot in pairs(ActivatedObjects or {}) do
+        if type(loot) == "table" and loot.CoopChoosenPlayer == playerId then
+            table.insert(forfeited, { id = id, loot = loot })
+        end
     end
-    -- The owner died before taking it. SpawnRoomReward waits for this reward before it spawns the
-    -- next player's, and the exits wait for it too, so let a living teammate take it.
-    local owner = CoopPlayers.GetHero(loot.CoopChoosenPlayer)
-    return owner == nil or owner.IsDead == true
+    for _, entry in ipairs(forfeited) do
+        local loot = entry.loot
+        ActivatedObjects[entry.id] = nil
+        Destroy({ Id = loot.ObjectId or entry.id })
+        if loot.MenuNotify ~= nil then
+            notifyExistingWaiters(UIData.BoonMenuId)
+        elseif loot.NotifyName ~= nil then
+            notifyExistingWaiters(loot.NotifyName)
+        end
+    end
 end
 
 ---@return boolean

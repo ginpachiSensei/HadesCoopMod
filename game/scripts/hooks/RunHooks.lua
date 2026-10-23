@@ -48,6 +48,43 @@ function RunHooks.InitHooks()
     HookUtils.wrap("RestoreUnlockRoomExits", RunHooks.RestoreUnlockRoomExitsWrapHook)
     HookUtils.onPostFunction("StartNewGame", RunHooks.StartNewGameHook)
     HookUtils.onPostFunction("CheckForAllEnemiesDead", RunHooks.CheckForAllEnemiesDeadPostHook)
+    if NotifyWithinDistanceAny then
+        HookUtils.wrap("NotifyWithinDistanceAny", RunHooks.NotifyWithinDistanceAnyWrapHook)
+    end
+    HookUtils.wrap("StartEncounter", RunHooks.StartEncounterWrapHook)
+end
+
+--- The room's thread keeps the hero context it was started with. If that player died before the
+--- fight starts (e.g. player 1 in the first chamber), the encounter would run as the dead, hidden
+--- hero: no enemy spawns and the room counts as cleared. Run it as a living player instead.
+---@private
+function RunHooks.StartEncounterWrapHook(baseFun, ...)
+    if CurrentRun.Hero and CurrentRun.Hero.IsDead then
+        local aliveHero = CoopPlayers.GetAliveHeroes()[1]
+        if aliveHero then
+            return HeroContext.RunWithHeroContextAwait(aliveHero, baseFun, ...)
+        end
+    end
+    return baseFun(...)
+end
+
+--- StartRoom waits until currentRun.Hero walks near the encounter start point before it spawns
+--- enemies. Watch every living player instead: either player can start the fight, and a dead
+--- (hidden) player 1 can no longer leave the room without enemies forever.
+---@private
+function RunHooks.NotifyWithinDistanceAnyWrapHook(baseFun, args)
+    if type(args) == "table" and args.Notify == "EncounterStartDistance" then
+        local ids = {}
+        for _, hero in CoopPlayers.PlayersIterator() do
+            if hero and not hero.IsDead and hero.ObjectId then
+                table.insert(ids, hero.ObjectId)
+            end
+        end
+        if #ids > 0 then
+            args.Ids = ids
+        end
+    end
+    return baseFun(args)
 end
 
 ---@private
@@ -233,6 +270,7 @@ function RunHooks.KillHeroHook(baseFun, ...)
         return
     end
     local aliveHero = CoopPlayers.GetAliveHeroes()[1]
+    local deadPlayerId = CoopPlayers.GetPlayerByHero(CurrentRun.Hero)
 
     if CurrentRun.Hero == CoopPlayers.GetMainHero() then
         HeroEx.HideHero(CurrentRun.Hero)
@@ -243,6 +281,10 @@ function RunHooks.KillHeroHook(baseFun, ...)
         if playerId then
             CoopRemovePlayerUnit(playerId)
         end
+    end
+    -- Rewards waiting for the dead player would lock the room (issue #86 on the hub)
+    if deadPlayerId then
+        LootDelivery.OnPlayerDied(deadPlayerId)
     end
     -- Unstuck AI
     HeroContext.RunWithHeroContext(aliveHero, EnemyAiHooks.RefreshAI)
