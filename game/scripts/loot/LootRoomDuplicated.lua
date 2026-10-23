@@ -323,7 +323,13 @@ function LootRoomDuplicated.CanUseHeroLoot(loot, hero)
     if not loot.CoopChoosenPlayer then
         return true
     end
-    return loot.CoopChoosenPlayer == CoopPlayers.GetPlayerByHero(hero)
+    if loot.CoopChoosenPlayer == CoopPlayers.GetPlayerByHero(hero) then
+        return true
+    end
+    -- The owner died before taking it. SpawnRoomReward waits for this reward before it spawns the
+    -- next player's, and the exits wait for it too, so let a living teammate take it.
+    local owner = CoopPlayers.GetHero(loot.CoopChoosenPlayer)
+    return owner == nil or owner.IsDead == true
 end
 
 ---@return boolean
